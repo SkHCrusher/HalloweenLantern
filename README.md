@@ -1,5 +1,13 @@
 # Halloween Lantern
 
+[![CI](https://github.com/SkHCrusher/HalloweenLantern/actions/workflows/ci.yml/badge.svg)](https://github.com/SkHCrusher/HalloweenLantern/actions/workflows/ci.yml)
+[![Platform: ESP32-C3](https://img.shields.io/badge/platform-ESP32--C3-blue?logo=espressif&logoColor=white)](https://www.espressif.com/en/products/socs/esp32-c3)
+[![Framework: Arduino](https://img.shields.io/badge/framework-Arduino-00979D?logo=arduino&logoColor=white)](https://www.arduino.cc/)
+[![Built with PlatformIO](https://img.shields.io/badge/built%20with-PlatformIO-orange?logo=platformio&logoColor=white)](https://platformio.org/)
+[![FastLED](https://img.shields.io/badge/FastLED-%5E3.6.0-brightgreen)](https://github.com/FastLED/FastLED)
+[![Last commit](https://img.shields.io/github/last-commit/SkHCrusher/HalloweenLantern)](https://github.com/SkHCrusher/HalloweenLantern/commits/main)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+
 Animierter Feuer-/Twinkle-Effekt für eine Matrix aus 120 WS2812B-LEDs (10×12) auf einem ESP32-C3 Super Mini. Mehrere Laternen synchronisieren ihre Farbe untereinander via ESP-NOW; per Knopfdruck an einer Laterne wird die neue Farbe an alle anderen verteilt.
 
 ## Hardware

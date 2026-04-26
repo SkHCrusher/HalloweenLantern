@@ -3,6 +3,9 @@
 #include <WiFi.h>
 #include <esp_now.h>
 
+#include "xy_mapping.h"
+#include "sync_keys.h"
+
 // ============== KONFIGURATION ==============
 #define LED_PIN         8         // GPIO8 am ESP32-C3 Super Mini
 #define NUM_LEDS_X      10        // LEDs pro Reihe (Umfang)
@@ -54,29 +57,6 @@ typedef struct __attribute__((packed)) {
 
 uint32_t syncMagic = 0;  // einmal in setup() berechnet
 
-static uint64_t fnv1a64(const uint8_t* data, size_t len, uint64_t seed) {
-  uint64_t h = seed;
-  for (size_t i = 0; i < len; i++) {
-    h ^= data[i];
-    h *= 0x100000001b3ULL;
-  }
-  return h;
-}
-
-static uint32_t deriveSyncMagic() {
-  uint64_t h = fnv1a64((const uint8_t*)PROJECT_KEY, strlen(PROJECT_KEY),
-                       0xcbf29ce484222325ULL);
-  return (uint32_t)(h ^ (h >> 32));
-}
-
-static uint32_t syncTagFor(uint8_t color) {
-  uint64_t h = fnv1a64((const uint8_t*)PROJECT_KEY, strlen(PROJECT_KEY),
-                       0xcbf29ce484222325ULL);
-  h = fnv1a64(&color, 1, h);
-  h = fnv1a64((const uint8_t*)PROJECT_KEY, strlen(PROJECT_KEY), h);
-  return (uint32_t)(h ^ (h >> 32));
-}
-
 SyncMessage syncData;
 bool syncReceived = false;
 
@@ -88,7 +68,7 @@ void onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
   memcpy(&received, data, sizeof(SyncMessage));
   if (received.magic != syncMagic) return;
   if (received.color > 7) return;
-  if (received.tag != syncTagFor(received.color)) return;
+  if (received.tag != syncTagFor(PROJECT_KEY, received.color)) return;
   syncData = received;
   syncReceived = true;
 }
@@ -126,22 +106,14 @@ void broadcastMode() {
   SyncMessage msg;
   msg.magic = syncMagic;
   msg.color = currentColor;
-  msg.tag   = syncTagFor(currentColor);
+  msg.tag   = syncTagFor(PROJECT_KEY, currentColor);
 
   esp_now_send(broadcastAddress, (uint8_t *)&msg, sizeof(msg));
 }
 
 // ============== XY MAPPING ==============
 uint16_t XY(uint8_t x, uint8_t y) {
-  if (x >= NUM_LEDS_X || y >= NUM_LEDS_Y) return 0;
-
-  uint8_t physY = (NUM_LEDS_Y - 1) - y;
-
-  if (physY & 1) {
-    return (physY * NUM_LEDS_X) + (NUM_LEDS_X - 1 - x);
-  } else {
-    return (physY * NUM_LEDS_X) + x;
-  }
+  return xyMap(x, y, NUM_LEDS_X, NUM_LEDS_Y);
 }
 
 // ============== FEUER SIMULATION ==============
@@ -255,7 +227,7 @@ void setup() {
   Serial.println("Halloween Lantern - Twinkle Fire");
   Serial.printf("Matrix: %dx%d = %d LEDs\n", NUM_LEDS_X, NUM_LEDS_Y, NUM_LEDS);
 
-  syncMagic = deriveSyncMagic();
+  syncMagic = deriveSyncMagic(PROJECT_KEY);
   Serial.printf("Sync-Magic: 0x%08X (aus PROJECT_KEY)\n", syncMagic);
 
   FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS);

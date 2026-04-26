@@ -32,6 +32,16 @@ Eigenen Key setzen (ohne ihn in git zu committen):
 
 `platformio_local.ini` ist via `.gitignore` ausgeschlossen. In der Datei steht nur der eine Wert `[secrets].project_key` — `build_flags` und alles andere bleiben in `platformio.ini`, es gibt keine Duplikation.
 
+## Tests
+
+Native-Unit-Tests für die reinen Helfer-Funktionen (XY-Mapping, FNV-1a-Hash, Sync-Magic-/Tag-Ableitung) liegen unter `test/test_native/`. Sie laufen auf dem Build-Host, kein ESP32 nötig.
+
+```
+pio test -e native
+```
+
+Ein GitHub-Actions-Workflow (`.github/workflows/ci.yml`) führt bei jedem Push auf `main` und bei jedem Pull-Request automatisch `pio test -e native` und `pio run -e lolin_c3_mini` aus, damit Regressionen und Build-Brüche vor dem Deploy auffallen.
+
 ## Bedienung
 
 - **Button** (GPIO20): schaltet die Farbe durch und broadcastet sie per ESP-NOW an alle anderen Laternen im Netz.

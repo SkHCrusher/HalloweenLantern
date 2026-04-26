@@ -1,0 +1,8 @@
+; Beispiel für lokale Overrides. Datei in `platformio_local.ini` umbenennen
+; (ist gitignored) und einen eigenen PROJECT_KEY eintragen.
+;
+; Es wird NUR der einzelne Wert überschrieben — build_flags etc. bleiben in
+; platformio.ini und müssen hier nicht dupliziert werden.
+
+[secrets]
+project_key = DEIN-EIGENER-GEHEIMER-KEY-HIER

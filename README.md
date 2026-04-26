@@ -18,6 +18,20 @@ pio run -t upload
 pio device monitor
 ```
 
+### PROJECT_KEY (Build-Schlüssel)
+
+Damit unabhängige Builds dieses Projekts sich gegenseitig nicht stören, ist jedes ESP-NOW-Paket mit einem aus dem `PROJECT_KEY` abgeleiteten Magic + Authentifizierungs-Tag versehen (FNV-1a-Hash, zur Laufzeit aus dem Key abgeleitet). Empfangene Pakete mit abweichendem Key werden verworfen. **Alle Laternen, die zusammen synchronisieren sollen, müssen denselben Key tragen.**
+
+Der Wert kommt aus `[secrets].project_key` in `platformio.ini` und wird per Variableninterpolation in das Build-Flag `-D PROJECT_KEY=…` eingesetzt. In `platformio.ini` steht ein **Fallback-Default**, damit das Projekt out-of-the-box baut. Dieser Fallback wird nur verwendet, wenn keine eigene `platformio_local.ini` existiert — und sollte für echte Laternen immer überschrieben werden, sonst können verschiedene Builds, die alle den Fallback benutzen, sich gegenseitig stören.
+
+Eigenen Key setzen (ohne ihn in git zu committen):
+
+1. `cp platformio_local.ini.example platformio_local.ini`
+2. In `platformio_local.ini` den Wert von `project_key` auf einen eigenen, geheimen String setzen.
+3. `pio run -t upload` — PlatformIO lädt die Datei automatisch (siehe `extra_configs` in `platformio.ini`) und überschreibt damit den Fallback-Default.
+
+`platformio_local.ini` ist via `.gitignore` ausgeschlossen. In der Datei steht nur der eine Wert `[secrets].project_key` — `build_flags` und alles andere bleiben in `platformio.ini`, es gibt keine Duplikation.
+
 ## Bedienung
 
 - **Button** (GPIO20): schaltet die Farbe durch und broadcastet sie per ESP-NOW an alle anderen Laternen im Netz.

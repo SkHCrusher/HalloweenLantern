@@ -39,17 +39,42 @@ unsigned long buttonChangeTime = 0;
 // ============== ESP-NOW ==============
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-#define SYNC_MAGIC 0x484C4C4Eu  // "HLLN" = Halloween Lantern
+// PROJECT_KEY trennt verschiedene Builds voneinander: nur Laternen mit
+// identischem Key akzeptieren die Pakete der anderen. Default ist ein
+// Platzhalter — vor dem ersten Flashen unbedingt überschreiben (siehe README).
+#ifndef PROJECT_KEY
+#define PROJECT_KEY "halloween-lantern-CHANGE-ME"
+#endif
 
 typedef struct __attribute__((packed)) {
-  uint32_t magic;
-  uint8_t color;
-  uint8_t checksum;  // XOR über magic-Bytes + color
+  uint32_t magic;   // FNV-1a(PROJECT_KEY)  — identifiziert das Projekt+Key
+  uint8_t  color;
+  uint32_t tag;     // FNV-1a(PROJECT_KEY || color || PROJECT_KEY)  — Auth
 } SyncMessage;
 
-static uint8_t syncChecksum(uint32_t magic, uint8_t color) {
-  return (uint8_t)(magic) ^ (uint8_t)(magic >> 8) ^
-         (uint8_t)(magic >> 16) ^ (uint8_t)(magic >> 24) ^ color;
+uint32_t syncMagic = 0;  // einmal in setup() berechnet
+
+static uint64_t fnv1a64(const uint8_t* data, size_t len, uint64_t seed) {
+  uint64_t h = seed;
+  for (size_t i = 0; i < len; i++) {
+    h ^= data[i];
+    h *= 0x100000001b3ULL;
+  }
+  return h;
+}
+
+static uint32_t deriveSyncMagic() {
+  uint64_t h = fnv1a64((const uint8_t*)PROJECT_KEY, strlen(PROJECT_KEY),
+                       0xcbf29ce484222325ULL);
+  return (uint32_t)(h ^ (h >> 32));
+}
+
+static uint32_t syncTagFor(uint8_t color) {
+  uint64_t h = fnv1a64((const uint8_t*)PROJECT_KEY, strlen(PROJECT_KEY),
+                       0xcbf29ce484222325ULL);
+  h = fnv1a64(&color, 1, h);
+  h = fnv1a64((const uint8_t*)PROJECT_KEY, strlen(PROJECT_KEY), h);
+  return (uint32_t)(h ^ (h >> 32));
 }
 
 SyncMessage syncData;
@@ -61,9 +86,9 @@ void onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
   if (len != sizeof(SyncMessage)) return;
   SyncMessage received;
   memcpy(&received, data, sizeof(SyncMessage));
-  if (received.magic != SYNC_MAGIC) return;
-  if (received.checksum != syncChecksum(received.magic, received.color)) return;
+  if (received.magic != syncMagic) return;
   if (received.color > 7) return;
+  if (received.tag != syncTagFor(received.color)) return;
   syncData = received;
   syncReceived = true;
 }
@@ -99,9 +124,9 @@ void broadcastMode() {
   if (!ESPNOW_ENABLED) return;
 
   SyncMessage msg;
-  msg.magic = SYNC_MAGIC;
+  msg.magic = syncMagic;
   msg.color = currentColor;
-  msg.checksum = syncChecksum(msg.magic, msg.color);
+  msg.tag   = syncTagFor(currentColor);
 
   esp_now_send(broadcastAddress, (uint8_t *)&msg, sizeof(msg));
 }
@@ -229,6 +254,9 @@ void setup() {
 
   Serial.println("Halloween Lantern - Twinkle Fire");
   Serial.printf("Matrix: %dx%d = %d LEDs\n", NUM_LEDS_X, NUM_LEDS_Y, NUM_LEDS);
+
+  syncMagic = deriveSyncMagic();
+  Serial.printf("Sync-Magic: 0x%08X (aus PROJECT_KEY)\n", syncMagic);
 
   FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS);
   FastLED.setBrightness(BRIGHTNESS);

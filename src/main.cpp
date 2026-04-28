@@ -24,6 +24,8 @@
 // Button-Konfiguration
 #define BUTTON_PIN      20        // GPIO20 für Button (gegen GND)
 #define DEBOUNCE_MS     30        // Pegel muss so lange stabil sein, bevor er zählt
+#define CLICK_COUNT_REQUIRED 3    // Dreifachklick zum Farbwechsel
+#define CLICK_GAP_MS    400       // max. Abstand zwischen aufeinanderfolgenden Klicks
 
 // ESP-NOW Synchronisation
 #define ESPNOW_ENABLED  true      // true = Sync aktiviert, false = nur lokal
@@ -34,10 +36,12 @@ byte heat[NUM_LEDS_X][NUM_LEDS_Y];
 uint8_t currentColor = 0;
 CRGBPalette16 firePalette = HeatColors_p;
 
-// Button-Variablen (Stable-State-Debouncing)
+// Button-Variablen (Stable-State-Debouncing + Dreifachklick)
 bool buttonRaw = HIGH;            // letzter Roh-Pegel
 bool buttonStable = HIGH;         // bestätigter, stabiler Pegel
 unsigned long buttonChangeTime = 0;
+uint8_t clickCount = 0;           // bisher gezählte Klicks in laufender Sequenz
+unsigned long lastClickTime = 0;  // Zeitpunkt des letzten gezählten Klicks
 
 // ============== ESP-NOW ==============
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -243,7 +247,7 @@ void setup() {
     initESPNow();
   }
 
-  Serial.println("\nButton (GPIO20): Farbe durchschalten");
+  Serial.println("\nButton (GPIO20): 3x klicken (max. 400 ms Lücke) zum Farbwechsel");
   Serial.println("Farben: 0=Orange 1=Blau 2=Grün 3=Lila 4=Halloween 5=Eis 6=TiefLila 7=TiefBlau");
 }
 
@@ -259,9 +263,13 @@ void loop() {
     }
   }
 
-  // Button-Steuerung mit Stable-State-Debouncing:
-  // Ein neuer Pegel wird erst übernommen, wenn er DEBOUNCE_MS lang stabil anliegt.
-  // Einzelne Spikes (EMI auf der Buttonleitung) werden so zuverlässig verworfen.
+  // Button-Steuerung mit Stable-State-Debouncing + Dreifachklick:
+  // Ein Pegel zählt erst nach DEBOUNCE_MS stabilem Anliegen. Anschließend
+  // muss zusätzlich CLICK_COUNT_REQUIRED Mal gedrückt werden, mit jeweils
+  // höchstens CLICK_GAP_MS Abstand. Damit werden auch korrelierte Mehrfach-
+  // Spikes ignoriert — relevant, weil GPIO20 (U0RXD) auf dem aktuellen PCB
+  // EMI-anfällig ist. Echte Hardware-Härtung (externer Pull-up, 100 nF)
+  // folgt erst in der nächsten PCB-Revision.
   bool reading = digitalRead(BUTTON_PIN);
   if (reading != buttonRaw) {
     buttonRaw = reading;
@@ -270,10 +278,21 @@ void loop() {
   if (buttonRaw != buttonStable && millis() - buttonChangeTime > DEBOUNCE_MS) {
     buttonStable = buttonRaw;
     if (buttonStable == LOW) {
-      currentColor = (currentColor + 1) % 8;
-      setFireColor(currentColor);
-      Serial.printf("Farbe: %d\n", currentColor);
-      broadcastMode();
+      unsigned long now = millis();
+      if (clickCount == 0 || now - lastClickTime > CLICK_GAP_MS) {
+        clickCount = 1;
+      } else {
+        clickCount++;
+      }
+      lastClickTime = now;
+      Serial.printf("Klick %u/%u\n", clickCount, CLICK_COUNT_REQUIRED);
+      if (clickCount >= CLICK_COUNT_REQUIRED) {
+        clickCount = 0;
+        currentColor = (currentColor + 1) % 8;
+        setFireColor(currentColor);
+        Serial.printf("Farbe: %d\n", currentColor);
+        broadcastMode();
+      }
     }
   }
 

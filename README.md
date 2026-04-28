@@ -52,16 +52,18 @@ Ein GitHub-Actions-Workflow (`.github/workflows/ci.yml`) führt bei jedem Push a
 
 ## Bedienung
 
-- **Button** (GPIO20): schaltet die Farbe durch und broadcastet sie per ESP-NOW an alle anderen Laternen im Netz.
+- **Button** (GPIO20): **dreimal klicken** (max. 400 ms Lücke zwischen den Klicks) schaltet die Farbe durch und broadcastet sie per ESP-NOW an alle anderen Laternen im Netz.
 - **Serial** (USB CDC, 115200): Zeichen `0`–`7` setzt die Farbe direkt.
 
 Verfügbare Farben: `0` Orange · `1` Blau · `2` Grün · `3` Lila · `4` Halloween · `5` Eis · `6` Tief-Lila · `7` Tief-Blau.
+
+> **Hinweis:** Der Dreifachklick ist ein **Software-Workaround** für die EMI-Empfindlichkeit von GPIO20 auf dem aktuellen PCB. Ein einzelner Spike kann keinen Farbwechsel mehr auslösen, weil drei valide Pulse innerhalb eines schmalen Zeitfensters statistisch praktisch nicht zufällig auftreten. Die endgültige Lösung (anderer Pin, externer Pull-up, optional 100 nF) folgt mit der nächsten PCB-Revision — siehe ToDo unten.
 
 ## ToDo / Geplante Verbesserungen
 
 ### Hardware-Revision (nächstes PCB)
 
-Hintergrund: Im Betrieb wechselten alle drei Laternen nach längerer Laufzeit spontan die Farbe. Sehr wahrscheinliche Ursache: ein EMI-Spike auf der Buttonleitung einer Laterne löste einen Geister-Press aus, der per ESP-NOW-Broadcast an alle anderen verteilt wurde. Software-seitig ist das mit Stable-State-Debouncing und einem robusteren Sync-Paket entschärft. Für die nächste Hardware-Revision zusätzlich vormerken:
+Hintergrund: Im Betrieb wechselten alle drei Laternen nach längerer Laufzeit spontan die Farbe. Sehr wahrscheinliche Ursache: ein EMI-Spike auf der Buttonleitung einer Laterne löste einen Geister-Press aus, der per ESP-NOW-Broadcast an alle anderen verteilt wurde. Software-seitig ist das mit Stable-State-Debouncing, Dreifachklick-Auslösung und einem robusteren Sync-Paket entschärft — das fängt die einzelnen Spikes weitgehend ab, ist aber ein Workaround. Für die nächste Hardware-Revision zusätzlich vormerken:
 
 - [ ] **Button NICHT auf GPIO20** legen. GPIO20 ist `U0RXD` (UART0-RX) auf dem ESP32-C3 Super Mini und damit störanfälliger als ein normaler GPIO. Bessere Kandidaten: GPIO9 (hat Onboard-Pull-up und ist Boot-Button — darf beim Boot nicht aktiv LOW sein), oder GPIO3/4/5. GPIO0/2/8/9 sind Boot-Strap-Pins, davon nur einen verwenden und Boot-Verhalten beachten.
 - [ ] **Externer Pull-up** am Button-Pin: 10 kΩ nach 3,3 V, zusätzlich zum internen Pull-up. Macht den Pin deutlich robuster gegen EMI-Einkopplungen — relevant, weil 120 WS2812B pro Laterne in unmittelbarer Nähe schalten.
